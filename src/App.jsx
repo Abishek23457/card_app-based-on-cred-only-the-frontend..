@@ -84,6 +84,7 @@ const SpotlightCard = React.forwardRef(({ children, className = "", borderAccent
   const cardRef = useRef(null);
   const overlayRef = useRef(null);
   const rectRef = useRef(null);
+  const rafRef = useRef(null);
 
   const handleMouseEnter = () => {
     if (cardRef.current) {
@@ -95,8 +96,25 @@ const SpotlightCard = React.forwardRef(({ children, className = "", borderAccent
     if (!rectRef.current || !overlayRef.current) return;
     const x = e.clientX - rectRef.current.left;
     const y = e.clientY - rectRef.current.top;
-    overlayRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+    }
+
+    rafRef.current = requestAnimationFrame(() => {
+      if (overlayRef.current) {
+        overlayRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      }
+    });
   };
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, []);
 
   const setRefs = (node) => {
     cardRef.current = node;
