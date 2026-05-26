@@ -669,16 +669,20 @@ p {
 
 .spotlight-overlay {
   position: absolute;
-  inset: -1px;
+  width: 500px;
+  height: 500px;
   background: radial-gradient(
-    450px circle at var(--mouse-x, 0px) var(--mouse-y, 0px),
-    rgba(255, 255, 255, 0.08),
-    transparent 80%
+    circle,
+    rgba(255, 255, 255, 0.08) 0%,
+    transparent 70%
   );
   pointer-events: none;
   z-index: 1;
   opacity: 0;
   transition: opacity 300ms ease;
+  left: -250px;
+  top: -250px;
+  will-change: transform;
 }
 
 .spotlight-card:hover .spotlight-overlay {
@@ -704,7 +708,6 @@ p {
 .highlight-word {
   display: inline-block;
   margin-right: 0.25em;
-  transition: opacity 150ms ease-out, color 150ms ease-out;
 }
 
 /* Parallax Stacked Cards in About Section */

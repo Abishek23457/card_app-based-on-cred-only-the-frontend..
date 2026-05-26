@@ -1,35 +1,32 @@
 import React, { useState, useEffect, useRef } from "react";
 
 // Hook to reveal elements when scrolled into view
-function useIntersectionObserver(options = {}) {
-  const [elements, setElements] = useState([]);
-  const observer = useRef(null);
+function useIntersectionObserver() {
+  const observerRef = useRef(null);
 
   useEffect(() => {
-    observer.current = new IntersectionObserver((entries) => {
+    observerRef.current = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
           entry.target.classList.add("visible");
         }
       });
-    }, options);
+    }, { threshold: 0.15 });
 
     return () => {
-      if (observer.current) {
-        observer.current.disconnect();
+      if (observerRef.current) {
+        observerRef.current.disconnect();
       }
     };
-  }, [options]);
+  }, []);
 
-  const registerElement = (el) => {
-    if (el && !elements.includes(el)) {
-      setElements((prev) => [...prev, el]);
-      observer.current.observe(el);
+  return (el) => {
+    if (el && observerRef.current) {
+      observerRef.current.observe(el);
     }
   };
-
-  return registerElement;
 }
+
 
 // Scroll-Linked Text Highlight (Word-by-word progressive illumination)
 function ScrollHighlightText({ text }) {
@@ -42,22 +39,17 @@ function ScrollHighlightText({ text }) {
       const rect = containerRef.current.getBoundingClientRect();
       const windowHeight = window.innerHeight;
       
-      const totalDist = windowHeight + rect.height;
-      const currentDist = windowHeight - rect.top;
+      const startY = windowHeight * 0.85; 
+      const endY = windowHeight * 0.25;   
       
-      const rawProgress = currentDist / totalDist;
-      const progress = Math.max(0, Math.min(1, rawProgress));
+      const currentY = rect.top;
+      const progress = (startY - currentY) / (startY - endY);
+      const clampedProgress = Math.max(0, Math.min(1.1, progress)); 
       
-      // Trigger range
-      const triggerStart = 0.35;
-      const triggerEnd = 0.65;
-      let scaledProgress = (progress - triggerStart) / (triggerEnd - triggerStart);
-      scaledProgress = Math.max(0, Math.min(1, scaledProgress));
-      
-      setScrollProgress(scaledProgress);
+      setScrollProgress(clampedProgress);
     };
 
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
     
     return () => window.removeEventListener("scroll", handleScroll);
@@ -67,9 +59,8 @@ function ScrollHighlightText({ text }) {
   return (
     <h2 ref={containerRef} className="scroll-highlight-text">
       {words.map((word, index) => {
-        const wordProgress = index / words.length;
-        // Highlighting curve
-        const wordOpacity = Math.max(0.12, Math.min(1, (scrollProgress - wordProgress) * 4 + 0.12));
+        const wordProgress = (index / words.length) * 0.85;
+        const wordOpacity = Math.max(0.12, Math.min(1, (scrollProgress - wordProgress) * 5 + 0.12));
         
         return (
           <span 
@@ -77,7 +68,7 @@ function ScrollHighlightText({ text }) {
             className="highlight-word" 
             style={{ 
               opacity: wordOpacity,
-              color: wordOpacity > 0.5 ? "#ffffff" : "var(--muted)"
+              color: wordOpacity > 0.6 ? "#ffffff" : "var(--muted)"
             }}
           >
             {word}{" "}
@@ -89,30 +80,46 @@ function ScrollHighlightText({ text }) {
 }
 
 // Mouse-Tracking Spotlight Card Component (NeoPOP style + Cursor spotlight)
-function SpotlightCard({ children, className = "", borderAccent = "", style = {} }) {
+const SpotlightCard = React.forwardRef(({ children, className = "", borderAccent = "", style = {} }, ref) => {
   const cardRef = useRef(null);
+  const overlayRef = useRef(null);
+  const rectRef = useRef(null);
+
+  const handleMouseEnter = () => {
+    if (cardRef.current) {
+      rectRef.current = cardRef.current.getBoundingClientRect();
+    }
+  };
 
   const handleMouseMove = (e) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    cardRef.current.style.setProperty("--mouse-x", `${x}px`);
-    cardRef.current.style.setProperty("--mouse-y", `${y}px`);
+    if (!rectRef.current || !overlayRef.current) return;
+    const x = e.clientX - rectRef.current.left;
+    const y = e.clientY - rectRef.current.top;
+    overlayRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  };
+
+  const setRefs = (node) => {
+    cardRef.current = node;
+    if (typeof ref === "function") {
+      ref(node);
+    } else if (ref) {
+      ref.current = node;
+    }
   };
 
   return (
     <div 
-      ref={cardRef} 
+      ref={setRefs} 
       className={`card-neopop spotlight-card ${className}`} 
+      onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       style={{ ...style, "--border-hover": borderAccent, "--shadow-hover": borderAccent }}
     >
-      <div className="spotlight-overlay"></div>
+      <div ref={overlayRef} className="spotlight-overlay"></div>
       <div className="card-content">{children}</div>
     </div>
   );
-}
+});
 
 // Scroll Parallax Stacked Cards Component
 function CardStack() {
@@ -331,7 +338,7 @@ const securityCards = [
 ];
 
 function App() {
-  const revealElement = useIntersectionObserver({ threshold: 0.15 });
+  const revealElement = useIntersectionObserver();
 
   // Custom States
   const [emailInput, setEmailInput] = useState("");
@@ -529,10 +536,11 @@ function App() {
               const IconComponent = feature.icon;
               return (
                 <SpotlightCard 
+                  ref={revealElement}
                   className="feature-card reveal" 
                   key={feature.title}
                   borderAccent={feature.accent}
-                  style={{ animationDelay: `${idx * 100}ms` }}
+                  style={{ transitionDelay: `${idx * 80}ms` }}
                 >
                   <div className="feature-icon-wrapper" style={{ backgroundColor: feature.accent }}>
                     <IconComponent />
@@ -616,10 +624,15 @@ function App() {
             <div className="orbit-chip chip-4 border-blue" style={{ transform: `translateY(${Math.cos(scrollY * 0.003 + 2) * 15}px)` }}>private</div>
           </div>
 
-          {/* Security Cards Details using SpotlightCards */}
-          <div className="security-cards-grid reveal" ref={revealElement}>
+          <div className="security-cards-grid">
             {securityCards.map((card, idx) => (
-              <SpotlightCard className="security-detail-card" key={card.title} borderAccent="var(--gold)">
+              <SpotlightCard 
+                ref={revealElement}
+                className="security-detail-card reveal" 
+                key={card.title} 
+                borderAccent="var(--gold)"
+                style={{ transitionDelay: `${idx * 80}ms` }}
+              >
                 <span className="badge-text">{card.highlight}</span>
                 <h3>{card.title}</h3>
                 <p>{card.desc}</p>
